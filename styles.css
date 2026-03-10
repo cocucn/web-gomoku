@@ -95,8 +95,9 @@ body {
 .layout {
   margin-top: 18px;
   display: grid;
-  grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
   gap: 18px;
+  align-items: start;
 }
 
 .control-panel,
@@ -106,6 +107,8 @@ body {
 
 .control-panel {
   padding: 18px;
+  position: sticky;
+  top: 16px;
 }
 
 .panel-section + .panel-section {
@@ -233,5 +236,9 @@ button:disabled {
   .control-panel,
   .board-panel {
     border-radius: 22px;
+  }
+
+  .control-panel {
+    position: static;
   }
 }
