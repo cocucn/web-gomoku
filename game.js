@@ -13,6 +13,10 @@ const LEVEL_LABELS = {
   medium: "中级",
   hard: "高级",
 };
+const HARD_SEARCH_DEPTH = 3;
+const HARD_ROOT_WIDTH = 6;
+const HARD_BRANCH_WIDTH = 5;
+const SEARCH_WIN_SCORE = 100000000;
 
 const state = {
   board: createBoard(),
@@ -457,31 +461,30 @@ function chooseAiMove(level, player) {
     return pickWeightedMove(scored, 4, 0.08);
   }
 
-  return selectHardMove(scored, player);
+  return selectHardMove(board, scored, player);
 }
 
-function selectHardMove(scoredCandidates, player) {
-  const shortlist = scoredCandidates.slice(0, Math.min(8, scoredCandidates.length));
+function selectHardMove(board, scoredCandidates, player) {
+  const shortlist = scoredCandidates.slice(0, Math.min(HARD_ROOT_WIDTH, scoredCandidates.length));
   const evaluated = [];
 
   for (const move of shortlist) {
-    const testBoard = cloneBoard(state.board);
+    const testBoard = cloneBoard(board);
     testBoard[move.row][move.col] = player;
-    const enemy = opponentOf(player);
-    const enemyCandidates = getPlayableCandidates(testBoard)
-      .filter(({ row, col }) => !(state.forbidBlack && enemy === BLACK && getForbiddenReason(testBoard, row, col, enemy)))
-      .map(({ row, col }) => scoreCandidate(testBoard, row, col, enemy, "medium"));
-    const enemyBest = enemyCandidates.length ? enemyCandidates.sort((a, b) => b.score - a.score)[0].score : 0;
-    const combined = move.score - enemyBest * 0.82;
-    evaluated.push({ ...move, combined });
+    const value = searchBestMove(
+      testBoard,
+      HARD_SEARCH_DEPTH - 1,
+      opponentOf(player),
+      player,
+      { row: move.row, col: move.col, player },
+      -SEARCH_WIN_SCORE,
+      SEARCH_WIN_SCORE
+    );
+    evaluated.push({ row: move.row, col: move.col, score: value });
   }
 
-  evaluated.sort((a, b) => b.combined - a.combined);
-  return pickWeightedMove(
-    evaluated.map((move) => ({ row: move.row, col: move.col, score: move.combined })),
-    3,
-    0.03
-  );
+  evaluated.sort((a, b) => b.score - a.score);
+  return pickWeightedMove(evaluated, 2, 0.015);
 }
 
 function scoreCandidate(board, row, col, player, level) {
@@ -527,6 +530,81 @@ function pickWeightedMove(sortedMoves, limit, spreadRatio) {
   const nearBest = shortlist.filter((move) => bestScore - move.score <= threshold);
   const selectionPool = nearBest.length ? nearBest : shortlist;
   return selectionPool[Math.floor(Math.random() * selectionPool.length)];
+}
+
+function searchBestMove(board, depth, currentPlayer, rootPlayer, lastMove, alpha, beta) {
+  if (lastMove && isWinningMove(board, lastMove.row, lastMove.col, lastMove.player)) {
+    const wonByRoot = lastMove.player === rootPlayer;
+    const depthBias = depth * 1000;
+    return wonByRoot ? SEARCH_WIN_SCORE + depthBias : -SEARCH_WIN_SCORE - depthBias;
+  }
+
+  const candidates = getScoredMovesForBoard(board, currentPlayer, "hard", HARD_BRANCH_WIDTH);
+  if (depth === 0 || !candidates.length) {
+    return evaluateBoardForPlayer(board, rootPlayer);
+  }
+
+  if (currentPlayer === rootPlayer) {
+    let best = -SEARCH_WIN_SCORE;
+    for (const move of candidates) {
+      const nextBoard = cloneBoard(board);
+      nextBoard[move.row][move.col] = currentPlayer;
+      const value = searchBestMove(
+        nextBoard,
+        depth - 1,
+        opponentOf(currentPlayer),
+        rootPlayer,
+        { row: move.row, col: move.col, player: currentPlayer },
+        alpha,
+        beta
+      );
+      best = Math.max(best, value);
+      alpha = Math.max(alpha, best);
+      if (beta <= alpha) {
+        break;
+      }
+    }
+    return best;
+  }
+
+  let best = SEARCH_WIN_SCORE;
+  for (const move of candidates) {
+    const nextBoard = cloneBoard(board);
+    nextBoard[move.row][move.col] = currentPlayer;
+    const value = searchBestMove(
+      nextBoard,
+      depth - 1,
+      opponentOf(currentPlayer),
+      rootPlayer,
+      { row: move.row, col: move.col, player: currentPlayer },
+      alpha,
+      beta
+    );
+    best = Math.min(best, value);
+    beta = Math.min(beta, best);
+    if (beta <= alpha) {
+      break;
+    }
+  }
+  return best;
+}
+
+function getScoredMovesForBoard(board, player, level, width) {
+  const candidates = getPlayableCandidates(board)
+    .filter(({ row, col }) => !(state.forbidBlack && player === BLACK && getForbiddenReason(board, row, col, player)))
+    .map(({ row, col }) => scoreCandidate(board, row, col, player, level))
+    .filter((move) => Number.isFinite(move.score));
+
+  candidates.sort((a, b) => b.score - a.score);
+  return candidates.slice(0, Math.min(width, candidates.length));
+}
+
+function evaluateBoardForPlayer(board, player) {
+  const ownMoves = getScoredMovesForBoard(board, player, "hard", 4);
+  const enemyMoves = getScoredMovesForBoard(board, opponentOf(player), "hard", 4);
+  const ownScore = ownMoves.length ? ownMoves[0].score + (ownMoves[1]?.score || 0) * 0.45 : 0;
+  const enemyScore = enemyMoves.length ? enemyMoves[0].score + (enemyMoves[1]?.score || 0) * 0.45 : 0;
+  return ownScore - enemyScore * 1.08;
 }
 
 function evaluatePositionScore(board, row, col, player) {
