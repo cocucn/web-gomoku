@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI 五子棋</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="hero">
+      <div>
+        <p class="eyebrow">WEB GOMOKU</p>
+        <h1>AI 五子棋</h1>
+        <p class="hero-copy">纯前端静态实现，支持三档 AI、悔棋、黑棋禁手、手数显示和玩家托管。</p>
+      </div>
+      <div class="status-card">
+        <div class="status-label">对局状态</div>
+        <div id="statusText" class="status-text">等待开始</div>
+        <div id="turnText" class="status-subtext">请选择参数后开始新局</div>
+      </div>
+    </header>
+
+    <main class="layout">
+      <aside class="control-panel">
+        <section class="panel-section">
+          <h2>对局设置</h2>
+          <label class="field">
+            <span>玩家执子</span>
+            <select id="humanColor">
+              <option value="1">先手黑棋</option>
+              <option value="2">后手白棋</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>AI 难度</span>
+            <select id="aiLevel">
+              <option value="easy">低级</option>
+              <option value="medium" selected>中级</option>
+              <option value="hard">高级</option>
+            </select>
+          </label>
+          <label class="field checkbox-field">
+            <input id="forbidBlack" type="checkbox">
+            <span>开启黑棋禁手检测</span>
+          </label>
+          <label class="field checkbox-field">
+            <input id="showMoveNumbers" type="checkbox">
+            <span>显示落子次序</span>
+          </label>
+        </section>
+
+        <section class="panel-section">
+          <h2>玩家托管</h2>
+          <label class="field checkbox-field">
+            <input id="humanAssistEnabled" type="checkbox">
+            <span>开启玩家 AI 托管</span>
+          </label>
+          <label class="field">
+            <span>托管等级</span>
+            <select id="humanAssistLevel">
+              <option value="easy">低级</option>
+              <option value="medium" selected>中级</option>
+              <option value="hard">高级</option>
+            </select>
+          </label>
+        </section>
+
+        <section class="panel-section action-group">
+          <button id="newGameBtn" class="primary-btn">开始新局</button>
+          <button id="undoBtn">悔棋</button>
+          <button id="assistMoveBtn">让当前托管方落子</button>
+        </section>
+
+        <section class="panel-section tips">
+          <h2>操作说明</h2>
+          <ul>
+            <li>点击棋盘交叉点落子。</li>
+            <li>悔棋默认回退最近一整轮。</li>
+            <li>开启禁手后仅黑棋受长连、双三、双四限制。</li>
+            <li>托管开启后，轮到玩家时会自动下棋。</li>
+          </ul>
+        </section>
+      </aside>
+
+      <section class="board-panel">
+        <div class="board-frame">
+          <canvas id="boardCanvas" width="900" height="900" aria-label="五子棋棋盘"></canvas>
+        </div>
+        <div id="messageBar" class="message-bar">准备开始一局新游戏。</div>
+      </section>
+    </main>
+  </div>
+
+  <script src="game.js"></script>
+</body>
+</html>
