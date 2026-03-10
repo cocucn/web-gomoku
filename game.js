@@ -422,6 +422,10 @@ function chooseAiMove(level, player) {
   ));
   const pool = legalCandidates.length ? legalCandidates : candidates;
 
+  if (!state.moves.length) {
+    return chooseOpeningMove(pool);
+  }
+
   for (const move of pool) {
     const testBoard = cloneBoard(board);
     testBoard[move.row][move.col] = player;
@@ -446,12 +450,11 @@ function chooseAiMove(level, player) {
   }
 
   if (level === "easy") {
-    const top = scored.slice(0, Math.min(5, scored.length));
-    return top[Math.floor(Math.random() * top.length)];
+    return pickWeightedMove(scored, 5, 0.22);
   }
 
   if (level === "medium") {
-    return scored[0];
+    return pickWeightedMove(scored, 4, 0.08);
   }
 
   return selectHardMove(scored, player);
@@ -459,8 +462,7 @@ function chooseAiMove(level, player) {
 
 function selectHardMove(scoredCandidates, player) {
   const shortlist = scoredCandidates.slice(0, Math.min(8, scoredCandidates.length));
-  let best = shortlist[0];
-  let bestValue = -Infinity;
+  const evaluated = [];
 
   for (const move of shortlist) {
     const testBoard = cloneBoard(state.board);
@@ -471,13 +473,15 @@ function selectHardMove(scoredCandidates, player) {
       .map(({ row, col }) => scoreCandidate(testBoard, row, col, enemy, "medium"));
     const enemyBest = enemyCandidates.length ? enemyCandidates.sort((a, b) => b.score - a.score)[0].score : 0;
     const combined = move.score - enemyBest * 0.82;
-    if (combined > bestValue) {
-      bestValue = combined;
-      best = move;
-    }
+    evaluated.push({ ...move, combined });
   }
 
-  return best;
+  evaluated.sort((a, b) => b.combined - a.combined);
+  return pickWeightedMove(
+    evaluated.map((move) => ({ row: move.row, col: move.col, score: move.combined })),
+    3,
+    0.03
+  );
 }
 
 function scoreCandidate(board, row, col, player, level) {
@@ -501,6 +505,28 @@ function scoreCandidate(board, row, col, player, level) {
   }
 
   return { row, col, score };
+}
+
+function chooseOpeningMove(pool) {
+  const center = Math.floor(BOARD_SIZE / 2);
+  const preferred = pool.filter(({ row, col }) => (
+    Math.abs(row - center) <= 1 && Math.abs(col - center) <= 1
+  ));
+  const openingPool = preferred.length ? preferred : pool;
+  return openingPool[Math.floor(Math.random() * openingPool.length)];
+}
+
+function pickWeightedMove(sortedMoves, limit, spreadRatio) {
+  const shortlist = sortedMoves.slice(0, Math.min(limit, sortedMoves.length));
+  if (shortlist.length === 1) {
+    return shortlist[0];
+  }
+
+  const bestScore = shortlist[0].score;
+  const threshold = Math.max(1, Math.abs(bestScore) * spreadRatio);
+  const nearBest = shortlist.filter((move) => bestScore - move.score <= threshold);
+  const selectionPool = nearBest.length ? nearBest : shortlist;
+  return selectionPool[Math.floor(Math.random() * selectionPool.length)];
 }
 
 function evaluatePositionScore(board, row, col, player) {
