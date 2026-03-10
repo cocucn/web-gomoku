@@ -461,6 +461,16 @@ function chooseAiMove(level, player) {
     return pickWeightedMove(scored, 4, 0.08);
   }
 
+  const forcingAttack = findForcingMoves(board, pool, player);
+  if (forcingAttack.length) {
+    return forcingAttack[0];
+  }
+
+  const forcingDefense = findForcingMoves(board, pool, enemy);
+  if (forcingDefense.length) {
+    return forcingDefense[0];
+  }
+
   return selectHardMove(board, scored, player);
 }
 
@@ -484,7 +494,7 @@ function selectHardMove(board, scoredCandidates, player) {
   }
 
   evaluated.sort((a, b) => b.score - a.score);
-  return pickWeightedMove(evaluated, 2, 0.015);
+  return evaluated[0];
 }
 
 function scoreCandidate(board, row, col, player, level) {
@@ -604,7 +614,57 @@ function evaluateBoardForPlayer(board, player) {
   const enemyMoves = getScoredMovesForBoard(board, opponentOf(player), "hard", 4);
   const ownScore = ownMoves.length ? ownMoves[0].score + (ownMoves[1]?.score || 0) * 0.45 : 0;
   const enemyScore = enemyMoves.length ? enemyMoves[0].score + (enemyMoves[1]?.score || 0) * 0.45 : 0;
-  return ownScore - enemyScore * 1.08;
+  const ownThreat = ownMoves.length ? analyzeTacticalValue(board, ownMoves[0].row, ownMoves[0].col, player) : 0;
+  const enemyThreat = enemyMoves.length ? analyzeTacticalValue(board, enemyMoves[0].row, enemyMoves[0].col, opponentOf(player)) : 0;
+  return ownScore + ownThreat * 1.5 - (enemyScore + enemyThreat * 1.7);
+}
+
+function findForcingMoves(board, pool, player) {
+  const scored = [];
+  for (const move of pool) {
+    const tactical = analyzeTacticalValue(board, move.row, move.col, player);
+    if (tactical > 0) {
+      scored.push({ row: move.row, col: move.col, score: tactical });
+    }
+  }
+  scored.sort((a, b) => b.score - a.score);
+  return scored;
+}
+
+function analyzeTacticalValue(board, row, col, player) {
+  if (board[row][col] !== EMPTY) {
+    return -Infinity;
+  }
+
+  const testBoard = cloneBoard(board);
+  testBoard[row][col] = player;
+  if (isWinningMove(testBoard, row, col, player)) {
+    return SEARCH_WIN_SCORE / 2;
+  }
+
+  const fours = countFours(testBoard, row, col, player);
+  const openThrees = countOpenThrees(testBoard, row, col, player);
+  const openFours = countOpenFours(testBoard, row, col, player);
+
+  if (openFours >= 1) {
+    return 3000000 + openThrees * 50000;
+  }
+  if (fours >= 2) {
+    return 2200000 + openThrees * 50000;
+  }
+  if (fours >= 1 && openThrees >= 1) {
+    return 1800000;
+  }
+  if (openThrees >= 2) {
+    return 1200000;
+  }
+  if (fours >= 1) {
+    return 400000;
+  }
+  if (openThrees >= 1) {
+    return 100000;
+  }
+  return 0;
 }
 
 function evaluatePositionScore(board, row, col, player) {
@@ -748,6 +808,20 @@ function countFours(board, row, col, player) {
       ".XXX.XO",
       ".XX.XXO",
       ".X.XXXO",
+    ]);
+  }
+  return total;
+}
+
+function countOpenFours(board, row, col, player) {
+  let total = 0;
+  for (const [dr, dc] of DIRECTIONS) {
+    const line = buildLine(board, row, col, dr, dc, player);
+    total += countLinePatterns(line, [
+      ".XXXX.",
+      ".XXX.X.",
+      ".XX.XX.",
+      ".X.XXX.",
     ]);
   }
   return total;
